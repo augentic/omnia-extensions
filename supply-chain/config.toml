@@ -295,6 +295,14 @@ criteria = "safe-to-deploy"
 version = "0.3.14"
 criteria = "safe-to-deploy"
 
+[[exemptions.fallible-iterator]]
+version = "0.3.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.fallible-streaming-iterator]]
+version = "0.1.9"
+criteria = "safe-to-deploy"
+
 [[exemptions.find-msvc-tools]]
 version = "0.1.12"
 criteria = "safe-to-deploy"
@@ -388,7 +396,15 @@ version = "0.14.5"
 criteria = "safe-to-deploy"
 
 [[exemptions.hashbrown]]
+version = "0.16.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.hashbrown]]
 version = "0.17.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.hashlink]]
+version = "0.12.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.heck]]
@@ -557,6 +573,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.libm]]
 version = "0.2.16"
+criteria = "safe-to-deploy"
+
+[[exemptions.libsqlite3-sys]]
+version = "0.38.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.linux-raw-sys]]
@@ -731,6 +751,10 @@ criteria = "safe-to-deploy"
 version = "0.2.17"
 criteria = "safe-to-deploy"
 
+[[exemptions.pkg-config]]
+version = "0.3.34"
+criteria = "safe-to-deploy"
+
 [[exemptions.portable-atomic]]
 version = "1.15.0"
 criteria = "safe-to-deploy"
@@ -883,6 +907,14 @@ criteria = "safe-to-deploy"
 version = "0.17.14"
 criteria = "safe-to-deploy"
 
+[[exemptions.rsqlite-vfs]]
+version = "0.1.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.rusqlite]]
+version = "0.40.2"
+criteria = "safe-to-deploy"
+
 [[exemptions.rustc-demangle]]
 version = "0.1.28"
 criteria = "safe-to-deploy"
@@ -953,6 +985,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.scopeguard]]
 version = "1.2.0"
+criteria = "safe-to-deploy"
+
+[[exemptions.sea-query]]
+version = "1.0.2"
 criteria = "safe-to-deploy"
 
 [[exemptions.security-framework]]
@@ -1029,6 +1065,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.socket2]]
 version = "0.6.5"
+criteria = "safe-to-deploy"
+
+[[exemptions.sqlite-wasm-rs]]
+version = "0.5.5"
 criteria = "safe-to-deploy"
 
 [[exemptions.stable_deref_trait]]
@@ -1213,6 +1253,10 @@ criteria = "safe-to-deploy"
 
 [[exemptions.valuable]]
 version = "0.1.1"
+criteria = "safe-to-deploy"
+
+[[exemptions.vcpkg]]
+version = "0.2.15"
 criteria = "safe-to-deploy"
 
 [[exemptions.version_check]]
