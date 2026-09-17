@@ -4,8 +4,12 @@
 //!
 //! The nested build compiles this same package for `wasm32`, running this
 //! script again; `Components` is a no-op under that target, so the recursion
-//! stops there. The fixture uses the dev profile and lands under
-//! `OUT_DIR/fixtures`, so plain `cargo test` is self-contained.
+//! stops there. The fixture uses the dev profile and lands in
+//! `target/wasm32-fixtures`, a sibling of the outer profile directory shared
+//! by every outer feature set, profile, and build-script hash, so plain
+//! `cargo test` is self-contained and a version or toolchain bump rebuilds
+//! the tree incrementally instead of leaving the last one behind under a
+//! per-hash `OUT_DIR`.
 
 fn main() {
     omnia_test::build::Components::in_workspace("..")
