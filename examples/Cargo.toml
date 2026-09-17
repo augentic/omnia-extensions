@@ -1,0 +1,53 @@
+[package]
+name = "examples"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+cfg-if.workspace = true
+omnia-wasi-config.workspace = true
+omnia-wasi-http.workspace = true
+omnia-wasi-keyvalue.workspace = true
+omnia-wasi-otel.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+omnia.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+axum.workspace = true
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+omnia-http-cache.workspace = true
+omnia-sdk = { workspace = true, features = ["http"] }
+tracing.workspace = true
+wasip3.workspace = true
+
+# The component rung (`tests/component.rs`): the example runtime booted
+# in-process over `omnia_test::host::Backends` against a loopback origin.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["http1", "server"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+omnia-test = { workspace = true, features = ["host"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt"] }
+
+# The fixture rung: `build.rs` compiles the example guest to a
+# `wasm32-wasip2` component for the tests to boot.
+[build-dependencies]
+omnia-test = { workspace = true, features = ["build"] }
+
+[[example]]
+name = "http-cache-wasm"
+path = "http-cache/guest.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "http-cache"
+path = "http-cache/runtime.rs"
