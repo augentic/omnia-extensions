@@ -60,7 +60,8 @@ async fn max_age_miss_then_hit() {
     assert!(!requests[0].headers.contains_key(IF_NONE_MATCH));
 
     // The stored copy is keyed by the raw etag, quotes included, and is the
-    // stamped response rather than the origin's.
+    // stamped response rather than the origin's. Header values are stored as
+    // bytes so nothing RFC 9110 allows in a field value is lost.
     let envelope = stored(&provider).expect("response cached");
     assert_eq!(envelope["status"], 200);
     assert_eq!(envelope["body"], serde_json::json!(PAYLOAD));
@@ -68,7 +69,7 @@ async fn max_age_miss_then_hit() {
         envelope["headers"]
             .as_array()
             .expect("headers array")
-            .contains(&serde_json::json!(["etag", ETAG_V1]))
+            .contains(&serde_json::json!(["etag", ETAG_V1.as_bytes()]))
     );
 
     let hit = cache.fetch(request(&headers)).await.expect("should succeed");
@@ -149,9 +150,9 @@ async fn no_store_bypasses() {
     assert_eq!(provider.http.requests().len(), 1);
     assert!(stored(&provider).is_none());
 
-    // The origin's `ETag` is still replaced. `Control` records no etag under
-    // `no-store`, so the stamped value is empty.
-    assert_eq!(etag(&response), Some(""));
+    // `Control` records no etag under `no-store`, and an empty entity-tag is
+    // not valid (RFC 9110 §8.8.3), so the origin's `ETag` is left in place.
+    assert_eq!(etag(&response), Some(ORIGIN_ETAG));
 }
 
 #[tokio::test]

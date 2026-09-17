@@ -60,8 +60,12 @@ impl<H: HttpRequest, S: StateStore> HttpRequest for HttpCache<H, S> {
         let mut response = self.http.fetch(request).await?;
 
         // The request etag identifies the resource the caller asked for, so it
-        // replaces whatever the origin sent.
-        response.headers_mut().insert(ETAG, HeaderValue::from_str(etag)?);
+        // replaces whatever the origin sent. `no-store` carries no etag, and
+        // RFC 9110 §8.8.3 admits no empty entity-tag, so the origin's `ETag`
+        // then stands.
+        if !etag.is_empty() {
+            response.headers_mut().insert(ETAG, HeaderValue::from_str(etag)?);
+        }
 
         // Only successful responses are cacheable: storing a 5xx body would
         // serve it as the resource for `max_age` seconds.

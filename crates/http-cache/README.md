@@ -26,10 +26,12 @@ where cached fetches are wanted and use the bare provider everywhere else.
 - `If-None-Match` is not forwarded to the origin: the cache owns conditional
   semantics, so the origin always answers with a full body.
 - The request's etag is written onto the response `ETag` on every cached-path
-  response (hit or miss), replacing whatever the origin sent.
+  response (hit or miss), replacing whatever the origin sent. `no-store`
+  carries no request etag, so the origin's `ETag` passes through unchanged.
 - The storage key is the raw `If-None-Match` value, quotes included
   (`"\"v1\""` for `If-None-Match: "v1"`); the injected `StateStore` decides
-  where entries live and the TTL is `max-age`.
+  where entries live and the TTL is `max-age`. Header values are stored as
+  raw bytes, so `obs-text` (RFC 9110 §5.5) survives a round trip.
 
 ## Usage
 
