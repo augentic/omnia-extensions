@@ -58,7 +58,8 @@ component rung compiles for.
 miss-then-hit, `no-cache` refresh (with `max-age`) and bypass (without),
 `max-age=0` revalidation, `no-store` bypass, non-2xx and 206 not stored, a corrupt
 entry and a store outage both degrading to the origin, pass-through without
-`Cache-Control`, and malformed directives. Unit tests
+`Cache-Control` or with only unrecognised directives, and malformed
+directives. Unit tests
 for the `Cache-Control` parser live beside it in `src/control.rs`.
 
 ### Component rung

@@ -29,7 +29,12 @@ pub struct Control {
 }
 
 impl Control {
-    /// Parse the caching directives when a `Cache-Control` header is present.
+    /// Parse the caching directives when `Cache-Control` carries at least one
+    /// this cache acts on: `no-store`, `no-cache` or `max-age`.
+    ///
+    /// Returns `None` when the header is absent or carries only directives
+    /// this cache does not recognise: RFC 9111 §5.2.3 requires a cache to
+    /// ignore those, so the request passes through as if none were present.
     ///
     /// # Errors
     ///
@@ -39,7 +44,7 @@ impl Control {
             tracing::debug!("no Cache-Control header present");
             return Ok(None);
         }
-        Self::try_from(headers).context("issue parsing Cache-Control headers").map(Some)
+        Self::parse(headers).context("issue parsing Cache-Control headers")
     }
 
     /// Whether a stored response may be served without contacting the origin.
@@ -73,20 +78,12 @@ impl Control {
     }
 }
 
-impl TryFrom<&HeaderMap> for Control {
-    type Error = anyhow::Error;
-
-    fn try_from(headers: &HeaderMap) -> Result<Self> {
-        // `Control::maybe_from` only parses when the header is present.
-        if headers.get(CACHE_CONTROL).is_none() {
-            bail!("missing Cache-Control header");
-        }
-
+impl Control {
+    fn parse(headers: &HeaderMap) -> Result<Option<Self>> {
         let mut control = Self::default();
         // `Some` whenever the directive appeared, so `max-age=0` still counts
         // as combining it with `no-store`.
         let mut max_age = None;
-        let mut directives = 0_usize;
 
         // `Cache-Control` is a list field (RFC 9111 §5.2), so several field
         // lines are equivalent to one comma-joined line (RFC 9110 §5.3):
@@ -95,28 +92,35 @@ impl TryFrom<&HeaderMap> for Control {
         for line in headers.get_all(CACHE_CONTROL) {
             for directive in line.to_str()?.split(',') {
                 let directive = directive.trim().to_ascii_lowercase();
-                if directive.is_empty() {
-                    continue;
-                }
-                directives += 1;
 
                 if directive == "no-store" {
                     control.no_store = true;
                 } else if directive == "no-cache" {
                     control.no_cache = true;
                 } else if let Some(value) = directive.strip_prefix("max-age=") {
+                    // RFC 9111 §4.2.1: a repeated directive is either taken
+                    // from its first occurrence or treated as invalid. A
+                    // caller sending two lifetimes has made a mistake worth
+                    // surfacing, so it is invalid here.
+                    if max_age.is_some() {
+                        bail!("`max-age` directive given more than once");
+                    }
                     let Ok(secs) = value.trim().parse() else {
                         bail!("`max-age` directive is malformed");
                     };
                     max_age = Some(secs);
                 }
 
-                // ... other directives ignored
+                // RFC 9111 §5.2.3: unrecognised directives (and empty list
+                // elements) are ignored.
             }
         }
 
-        if directives == 0 {
-            bail!("Cache-Control header is empty");
+        // Nothing this cache acts on: RFC 9111 §5.2.3 says ignore the rest,
+        // so the request is treated as if it carried no `Cache-Control`.
+        if !control.no_store && !control.no_cache && max_age.is_none() {
+            tracing::debug!("no recognised Cache-Control directive present");
+            return Ok(None);
         }
 
         // Conflicts are judged on the whole set, so `max-age=0, no-store` and
@@ -141,10 +145,15 @@ impl TryFrom<&HeaderMap> for Control {
             if lines.next().is_some() {
                 bail!("multiple `etag` values in `If-None-Match` header are not supported");
             }
-            control.etag = strong_etag(etag.to_str()?)?.to_string();
+            // The etag doubles as the `&str` store key, so `obs-text` octets
+            // (RFC 9110 §5.5), though grammatically valid, are not accepted.
+            let Ok(etag) = etag.to_str() else {
+                bail!("`If-None-Match` contains `obs-text` octets, which cannot form a cache key");
+            };
+            control.etag = strong_etag(etag)?.to_string();
         }
 
-        Ok(control)
+        Ok(Some(control))
     }
 }
 
@@ -154,7 +163,8 @@ impl TryFrom<&HeaderMap> for Control {
 /// RFC 9110 §8.8.3: `entity-tag = [ weak ] opaque-tag`, `opaque-tag = DQUOTE
 /// *etagc DQUOTE`, `etagc = %x21 / %x23-7E / obs-text`. A comma is a legal
 /// `etagc`, so a list is detected by finding content after the closing quote,
-/// not by looking for commas.
+/// not by looking for commas. `obs-text` is excluded by the caller, which
+/// needs the tag as a `&str`, so only the ASCII range is checked here.
 fn strong_etag(value: &str) -> Result<&str> {
     let value = value.trim_matches([' ', '\t']);
     if value.is_empty() {
@@ -187,6 +197,13 @@ fn strong_etag(value: &str) -> Result<&str> {
 mod tests {
     use super::*;
 
+    use http::HeaderValue;
+
+    /// Parse headers expected to carry at least one recognised directive.
+    fn parse(headers: &HeaderMap) -> Result<Control> {
+        Control::maybe_from(headers)?.context("no recognised directive present")
+    }
+
     #[test]
     fn without_cache_control() {
         let mut headers = HeaderMap::new();
@@ -201,7 +218,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "max-age=120".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"strong-etag\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
 
         assert!(!control.no_store);
         assert_eq!(control.max_age, 120);
@@ -216,7 +233,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "max-age=0".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
 
         // RFC 9111 §5.2.1.1: no stored response is young enough, and there is
         // no lifetime to store a fresh one under.
@@ -230,7 +247,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
 
         // RFC 9111 §5.2.1.4 only forbids serving the stored copy unvalidated;
         // with no `max-age` there is nothing to write the response under.
@@ -245,7 +262,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-cache, max-age=60".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
 
         assert!(!control.reads());
         assert!(control.writes());
@@ -257,7 +274,7 @@ mod tests {
         let mut headers = HeaderMap::new();
         headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected missing etag error");
         };
     }
@@ -268,9 +285,73 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-store, no-cache, max-age=10".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected conflicting directives error");
         };
+    }
+
+    #[test]
+    fn unrecognised_directives_pass_through() {
+        // RFC 9111 §5.2.3: a cache MUST ignore unrecognised directives, so a
+        // header carrying only those (or nothing) is as good as absent, and
+        // does not demand an etag.
+        for value in ["no-transform", "public, ext=1", "", ", ,"] {
+            let mut headers = HeaderMap::new();
+            headers.append(CACHE_CONTROL, value.parse().unwrap());
+
+            assert!(
+                Control::maybe_from(&headers).expect("should parse").is_none(),
+                "expected `{value}` to pass through"
+            );
+        }
+
+        // Alongside a recognised directive they are simply skipped.
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "no-transform, max-age=60, ext=1".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let control = parse(&headers).expect("should parse");
+        assert_eq!(control.max_age(), 60);
+        assert!(control.reads());
+    }
+
+    #[test]
+    fn duplicate_max_age_refused() {
+        // RFC 9111 §4.2.1: a repeated directive is first-occurrence or
+        // invalid; here it is invalid, whichever order the values come in.
+        for value in ["max-age=0, max-age=60", "max-age=60, max-age=0", "max-age=60, max-age=60"] {
+            let mut headers = HeaderMap::new();
+            headers.append(CACHE_CONTROL, value.parse().unwrap());
+            headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+            let Err(_) = parse(&headers) else {
+                panic!("expected `{value}` to be refused");
+            };
+        }
+
+        // Across field lines too (RFC 9110 §5.3).
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(CACHE_CONTROL, "max-age=0".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let Err(_) = parse(&headers) else {
+            panic!("expected duplicate `max-age` across lines to be refused");
+        };
+    }
+
+    #[test]
+    fn obs_text_etag_refused_explicitly() {
+        // Grammatically valid `etagc` (RFC 9110 §8.8.3), but the etag doubles
+        // as a `&str` store key, so the contract refuses it and says why.
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(IF_NONE_MATCH, HeaderValue::from_bytes(b"\"v\xE9\"").unwrap());
+
+        let Err(e) = parse(&headers) else {
+            panic!("expected obs-text etag to be refused");
+        };
+        assert!(format!("{e:#}").contains("obs-text"), "unexpected error: {e:#}");
     }
 
     #[test]
@@ -281,7 +362,7 @@ mod tests {
             headers.append(CACHE_CONTROL, value.parse().unwrap());
             headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-            let Err(_) = Control::try_from(&headers) else {
+            let Err(_) = parse(&headers) else {
                 panic!("expected `{value}` to be refused");
             };
         }
@@ -295,7 +376,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
         assert!(control.no_cache);
         assert_eq!(control.max_age(), 60);
         assert!(control.writes());
@@ -306,7 +387,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-store".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected conflicting directives error across lines");
         };
     }
@@ -319,7 +400,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"v1,v2\"".parse().unwrap());
 
-        let control = Control::try_from(&headers).expect("should parse");
+        let control = parse(&headers).expect("should parse");
         assert_eq!(control.etag(), "\"v1,v2\"");
         assert!(control.reads());
     }
@@ -334,7 +415,7 @@ mod tests {
             headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
             headers.append(IF_NONE_MATCH, value.parse().unwrap());
 
-            let Err(_) = Control::try_from(&headers) else {
+            let Err(_) = parse(&headers) else {
                 panic!("expected `{value}` to be refused");
             };
         }
@@ -347,7 +428,7 @@ mod tests {
         headers.append(IF_NONE_MATCH, "\"etag1\"".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag2\"".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected multiple etag values rejection across lines");
         };
     }
@@ -358,7 +439,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
         headers.append(IF_NONE_MATCH, "W/\"weak-etag\"".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected weak etag rejection");
         };
     }
@@ -369,7 +450,7 @@ mod tests {
         headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
         headers.append(IF_NONE_MATCH, "\"etag1\", \"etag2\"".parse().unwrap());
 
-        let Err(_) = Control::try_from(&headers) else {
+        let Err(_) = parse(&headers) else {
             panic!("expected multiple etag values rejection");
         };
     }

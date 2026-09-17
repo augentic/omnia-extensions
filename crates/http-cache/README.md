@@ -8,15 +8,19 @@ where cached fetches are wanted and use the bare provider everywhere else.
 
 ## Header contract
 
-- A request without `Cache-Control` passes through untouched.
+- A request without `Cache-Control`, or whose `Cache-Control` carries none of
+  the three directives below, passes through untouched: RFC 9111 §5.2.3 has a
+  cache ignore directives it does not recognise, so `no-transform` or an
+  extension alone neither needs an etag nor has its validators rewritten.
 - `Cache-Control` directives: `max-age=<secs>` (serve a stored response, or
   store a successful one for that long), `no-cache` (bypass the stored copy
   and contact the origin), `no-store` (contact the origin and store nothing).
   `no-store` cannot be combined with the other two, in any order and whatever
-  the `max-age` value. Both headers are list fields, so repeated field lines
-  are read as one comma-joined list (RFC 9110 §5.3): a second `Cache-Control`
-  line adds directives, a second `If-None-Match` line is a second etag and is
-  refused.
+  the `max-age` value, and `max-age` may appear only once (RFC 9111 §4.2.1
+  allows a repeated directive to be treated as invalid). Both headers are list
+  fields, so repeated field lines are read as one comma-joined list (RFC 9110
+  §5.3): a second `Cache-Control` line adds directives, a second
+  `If-None-Match` line is a second etag and is refused.
 - `max-age` is the only lifetime the cache knows, so it gates the store in
   both directions. `max-age=0` neither serves nor stores: per RFC 9111
   §5.2.1.1 a request `max-age` is the oldest response the client will accept,
@@ -26,7 +30,10 @@ where cached fetches are wanted and use the bare provider everywhere else.
 - `max-age` and `no-cache` require `If-None-Match` carrying a single strong
   etag, validated against the RFC 9110 §8.8.3 grammar: weak (`W/`) tags,
   `*`, bare tokens and lists are refused before any request leaves. A comma
-  inside the quotes is legal `etagc`, so `"v1,v2"` is one etag.
+  inside the quotes is legal `etagc`, so `"v1,v2"` is one etag. `obs-text`
+  octets (0x80–0xFF) are grammatically valid but refused, because the etag
+  doubles as the `&str` store key; RFC 9110 §5.5 asks new senders to stay
+  within visible ASCII anyway.
 - Only complete 2xx responses are stored; a `206 Partial Content`, 304 or 5xx
   is returned but never cached. RFC 9111 §3 reserves storing a 206 for caches
   that do the range bookkeeping of §3.3–§3.4, which this one does not.

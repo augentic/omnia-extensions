@@ -301,6 +301,31 @@ async fn without_cache_control_passes_through() {
 }
 
 #[tokio::test]
+async fn unrecognised_directives_pass_through() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, &provider);
+
+    // RFC 9111 §5.2.3: nothing here is a directive this cache acts on, so the
+    // request is forwarded exactly as sent, `If-None-Match` included, and the
+    // origin's `ETag` is not rewritten.
+    let headers = [(CACHE_CONTROL, "no-transform"), (IF_NONE_MATCH, ETAG_V1)];
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(etag(&response), Some(ORIGIN_ETAG));
+
+    let requests = provider.http.requests();
+    assert_eq!(requests.len(), 1);
+    assert_eq!(
+        requests[0].headers.get(IF_NONE_MATCH).map(HeaderValue::as_bytes),
+        Some(ETAG_V1.as_bytes())
+    );
+    assert!(stored(&provider).is_none());
+
+    // And without an etag it is not an error either.
+    cache.fetch(request(&[(CACHE_CONTROL, "no-transform")])).await.expect("should succeed");
+    assert_eq!(provider.http.requests().len(), 2);
+}
+
+#[tokio::test]
 async fn malformed_directives_refused() {
     let provider = provider(StatusCode::OK);
     let cache = HttpCache::new(&provider, &provider);
