@@ -1,0 +1,36 @@
+[package]
+name = "examples"
+publish = false
+edition.workspace = true
+rust-version.workspace = true
+version.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+cfg-if.workspace = true
+omnia-wasi-config.workspace = true
+omnia-wasi-http.workspace = true
+omnia-wasi-keyvalue.workspace = true
+omnia-wasi-otel.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+omnia.workspace = true
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+axum.workspace = true
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+omnia-http-cache.workspace = true
+omnia-sdk = { workspace = true, features = ["http"] }
+tracing.workspace = true
+wasip3.workspace = true
+
+[[example]]
+name = "http-cache-wasm"
+path = "http-cache/guest.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "http-cache"
+path = "http-cache/runtime.rs"
