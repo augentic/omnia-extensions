@@ -228,6 +228,23 @@ async fn non_success_not_stored() {
 }
 
 #[tokio::test]
+async fn partial_content_not_stored() {
+    let provider = provider(StatusCode::PARTIAL_CONTENT);
+    let cache = HttpCache::new(&provider, &provider);
+    let headers = [(CACHE_CONTROL, "max-age=60"), (IF_NONE_MATCH, ETAG_V1)];
+
+    // RFC 9111 §3: a 206 is storable only by a cache that understands range
+    // combination. This one does not, so the ranged body is returned to the
+    // caller but never keyed as the whole resource.
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(response.status(), StatusCode::PARTIAL_CONTENT);
+    assert_eq!(response.body(), PAYLOAD);
+    assert_eq!(etag(&response), Some(ETAG_V1));
+    assert_eq!(provider.http.requests().len(), 1);
+    assert!(stored(&provider).is_none());
+}
+
+#[tokio::test]
 async fn corrupt_entry_is_a_miss_and_replaced() {
     let provider = provider(StatusCode::OK);
     let cache = HttpCache::new(&provider, &provider);

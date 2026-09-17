@@ -24,15 +24,18 @@ where cached fetches are wanted and use the bare provider everywhere else.
   (RFC 9111 §5.2.1.4 says nothing about storing); `no-cache, max-age=<secs>`
   is the forced refresh that replaces the stored copy.
 - `max-age` and `no-cache` require `If-None-Match` carrying a single strong
-  etag; weak (`W/`) and comma-separated values are refused before any request
-  leaves.
-- Only 2xx responses are stored; a 304 or 5xx is returned but never cached.
+  etag, validated against the RFC 9110 §8.8.3 grammar: weak (`W/`) tags,
+  `*`, bare tokens and lists are refused before any request leaves. A comma
+  inside the quotes is legal `etagc`, so `"v1,v2"` is one etag.
+- Only complete 2xx responses are stored; a `206 Partial Content`, 304 or 5xx
+  is returned but never cached. RFC 9111 §3 reserves storing a 206 for caches
+  that do the range bookkeeping of §3.3–§3.4, which this one does not.
 - `If-None-Match` is not forwarded to the origin: the cache owns conditional
   semantics, so the origin always answers with a full body.
 - The request's etag is written onto the response `ETag` on every cached-path
   response (hit or miss), replacing whatever the origin sent. `no-store`
   carries no request etag, so the origin's `ETag` passes through unchanged.
-- The storage key is the raw `If-None-Match` value, quotes included
+- The storage key is the `If-None-Match` entity-tag as sent, quotes included
   (`"\"v1\""` for `If-None-Match: "v1"`); the injected `StateStore` decides
   where entries live and the TTL is `max-age`. Header values are stored as
   raw bytes, so `obs-text` (RFC 9110 §5.5) survives a round trip.

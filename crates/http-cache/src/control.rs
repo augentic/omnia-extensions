@@ -138,21 +138,49 @@ impl TryFrom<&HeaderMap> for Control {
                     "`If-None-Match` header required when using `Cache-Control: max-age` or `no-cache`"
                 );
             };
-            let etag_str = etag.to_str()?;
-            if lines.next().is_some() || etag_str.contains(',') {
+            if lines.next().is_some() {
                 bail!("multiple `etag` values in `If-None-Match` header are not supported");
             }
-            if etag_str.is_empty() {
-                bail!("`If-None-Match` header is empty");
-            }
-            if etag_str.starts_with("W/") {
-                bail!("weak `etag` values in `If-None-Match` header are not supported");
-            }
-            control.etag = etag_str.to_string();
+            control.etag = strong_etag(etag.to_str()?)?.to_string();
         }
 
         Ok(control)
     }
+}
+
+/// Validate `value` as exactly one strong entity-tag and return it trimmed of
+/// surrounding whitespace.
+///
+/// RFC 9110 §8.8.3: `entity-tag = [ weak ] opaque-tag`, `opaque-tag = DQUOTE
+/// *etagc DQUOTE`, `etagc = %x21 / %x23-7E / obs-text`. A comma is a legal
+/// `etagc`, so a list is detected by finding content after the closing quote,
+/// not by looking for commas.
+fn strong_etag(value: &str) -> Result<&str> {
+    let value = value.trim_matches([' ', '\t']);
+    if value.is_empty() {
+        bail!("`If-None-Match` header is empty");
+    }
+    if value == "*" {
+        bail!("`If-None-Match: *` is not a usable cache key");
+    }
+    if value.starts_with("W/") {
+        bail!("weak `etag` values in `If-None-Match` header are not supported");
+    }
+    let Some(body) = value.strip_prefix('"') else {
+        bail!("`If-None-Match` value is not a quoted entity-tag");
+    };
+    // `etagc` excludes DQUOTE, so the first one closes the tag.
+    let Some(close) = body.find('"') else {
+        bail!("`If-None-Match` entity-tag is missing its closing quote");
+    };
+    let (opaque, rest) = body.split_at(close);
+    if !rest[1..].trim_matches([' ', '\t']).is_empty() {
+        bail!("multiple `etag` values in `If-None-Match` header are not supported");
+    }
+    if !opaque.bytes().all(|b| b == 0x21 || (0x23..=0x7E).contains(&b)) {
+        bail!("`If-None-Match` entity-tag contains characters outside `etagc`");
+    }
+    Ok(value)
 }
 
 #[cfg(test)]
@@ -281,6 +309,35 @@ mod tests {
         let Err(_) = Control::try_from(&headers) else {
             panic!("expected conflicting directives error across lines");
         };
+    }
+
+    #[test]
+    fn quoted_comma_is_one_etag() {
+        // RFC 9110 §8.8.3: `,` (0x2C) is within `etagc`, so this is a single
+        // strong entity-tag, not a list.
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"v1,v2\"".parse().unwrap());
+
+        let control = Control::try_from(&headers).expect("should parse");
+        assert_eq!(control.etag(), "\"v1,v2\"");
+        assert!(control.reads());
+    }
+
+    #[test]
+    fn etag_grammar_enforced() {
+        // Each is not exactly one strong entity-tag: a list with no comma
+        // whitespace, a list, a bare token, the match-anything form, an
+        // unterminated tag, and a space inside the opaque-tag.
+        for value in ["\"a\" \"b\"", "\"a\",\"b\"", "v1", "*", "\"v1", "\"v 1\""] {
+            let mut headers = HeaderMap::new();
+            headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+            headers.append(IF_NONE_MATCH, value.parse().unwrap());
+
+            let Err(_) = Control::try_from(&headers) else {
+                panic!("expected `{value}` to be refused");
+            };
+        }
     }
 
     #[test]

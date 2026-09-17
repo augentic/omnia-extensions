@@ -9,7 +9,7 @@ use std::error::Error;
 use anyhow::Result;
 use bytes::Bytes;
 use http::header::{ETAG, IF_NONE_MATCH};
-use http::{HeaderValue, Request, Response};
+use http::{HeaderValue, Request, Response, StatusCode};
 use http_body::Body;
 use omnia_sdk::{HttpRequest, StateStore};
 
@@ -111,12 +111,21 @@ impl<H: HttpRequest, S: StateStore> HttpRequest for HttpCache<H, S> {
             response.headers_mut().insert(ETAG, HeaderValue::from_str(etag)?);
         }
 
-        // Only successful responses are cacheable: storing a 5xx body would
-        // serve it as the resource for `max_age` seconds.
-        if control.writes() && response.status().is_success() {
+        // Only complete, successful responses are cacheable: storing a 5xx
+        // body would serve it as the resource for `max_age` seconds, and a
+        // `206 Partial Content` body would be served as the whole resource.
+        // RFC 9111 §3 lets a cache store a 206 only if it understands it,
+        // which means the range bookkeeping of §3.3 and §3.4 that this cache
+        // does not do.
+        if control.writes() && storable(response.status()) {
             self.write_entry(etag, &response, control.max_age()).await;
         }
 
         Ok(response)
     }
+}
+
+/// Whether a response with `status` may be stored as the complete resource.
+fn storable(status: StatusCode) -> bool {
+    status.is_success() && status != StatusCode::PARTIAL_CONTENT
 }
