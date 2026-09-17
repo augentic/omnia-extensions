@@ -195,9 +195,9 @@ fn strong_etag(value: &str) -> Result<&str> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use http::HeaderValue;
+
+    use super::*;
 
     /// Parse headers expected to carry at least one recognised directive.
     fn parse(headers: &HeaderMap) -> Result<Control> {
