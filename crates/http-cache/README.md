@@ -12,7 +12,11 @@ where cached fetches are wanted and use the bare provider everywhere else.
 - `Cache-Control` directives: `max-age=<secs>` (serve a stored response, or
   store a successful one for that long), `no-cache` (bypass the stored copy
   and contact the origin), `no-store` (contact the origin and store nothing).
-  `no-store` cannot be combined with the other two.
+  `no-store` cannot be combined with the other two, in any order and whatever
+  the `max-age` value. Both headers are list fields, so repeated field lines
+  are read as one comma-joined list (RFC 9110 §5.3): a second `Cache-Control`
+  line adds directives, a second `If-None-Match` line is a second etag and is
+  refused.
 - `max-age` is the only lifetime the cache knows, so it gates the store in
   both directions. `max-age=0` neither serves nor stores: per RFC 9111
   §5.2.1.1 a request `max-age` is the oldest response the client will accept,

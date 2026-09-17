@@ -134,6 +134,32 @@ async fn no_cache_refreshes() {
 }
 
 #[tokio::test]
+async fn cache_control_split_across_lines() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, &provider);
+
+    // Two `.header()` calls: one list per RFC 9110 §5.3, so this is the
+    // `no-cache, max-age=60` refresh, not a bare `no-cache` bypass.
+    let headers =
+        [(CACHE_CONTROL, "no-cache"), (CACHE_CONTROL, "max-age=60"), (IF_NONE_MATCH, ETAG_V1)];
+    provider.storage.insert_state(ETAG_V1, b"stale");
+
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(response.body(), PAYLOAD);
+    assert_eq!(provider.http.requests().len(), 1);
+    assert_eq!(stored(&provider).expect("response cached")["status"], 200);
+
+    // And a `no-store` on a later line is seen, so the conflict is refused
+    // before any request leaves.
+    let headers =
+        [(CACHE_CONTROL, "max-age=60"), (CACHE_CONTROL, "no-store"), (IF_NONE_MATCH, ETAG_V1)];
+    let Err(_) = cache.fetch(request(&headers)).await else {
+        panic!("expected conflicting directives error");
+    };
+    assert_eq!(provider.http.requests().len(), 1);
+}
+
+#[tokio::test]
 async fn no_cache_alone_bypasses_without_writing() {
     let provider = provider(StatusCode::OK);
     let cache = HttpCache::new(&provider, &provider);

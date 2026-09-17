@@ -77,66 +77,73 @@ impl TryFrom<&HeaderMap> for Control {
     type Error = anyhow::Error;
 
     fn try_from(headers: &HeaderMap) -> Result<Self> {
-        let mut control = Self::default();
-
         // `Control::maybe_from` only parses when the header is present.
-        let cache_control = headers.get(CACHE_CONTROL).context("missing Cache-Control header")?;
+        if headers.get(CACHE_CONTROL).is_none() {
+            bail!("missing Cache-Control header");
+        }
 
-        if cache_control.is_empty() {
+        let mut control = Self::default();
+        // `Some` whenever the directive appeared, so `max-age=0` still counts
+        // as combining it with `no-store`.
+        let mut max_age = None;
+        let mut directives = 0_usize;
+
+        // `Cache-Control` is a list field (RFC 9111 §5.2), so several field
+        // lines are equivalent to one comma-joined line (RFC 9110 §5.3):
+        // every line is read, and the directives form a set whose order
+        // carries no meaning.
+        for line in headers.get_all(CACHE_CONTROL) {
+            for directive in line.to_str()?.split(',') {
+                let directive = directive.trim().to_ascii_lowercase();
+                if directive.is_empty() {
+                    continue;
+                }
+                directives += 1;
+
+                if directive == "no-store" {
+                    control.no_store = true;
+                } else if directive == "no-cache" {
+                    control.no_cache = true;
+                } else if let Some(value) = directive.strip_prefix("max-age=") {
+                    let Ok(secs) = value.trim().parse() else {
+                        bail!("`max-age` directive is malformed");
+                    };
+                    max_age = Some(secs);
+                }
+
+                // ... other directives ignored
+            }
+        }
+
+        if directives == 0 {
             bail!("Cache-Control header is empty");
         }
 
-        for directive in cache_control.to_str()?.split(',') {
-            let directive = directive.trim().to_ascii_lowercase();
-            if directive.is_empty() {
-                continue;
-            }
-
-            if directive == "no-store" {
-                if control.no_cache || control.max_age > 0 {
-                    bail!("`no-store` cannot be combined with other cache directives");
-                }
-                control.no_store = true;
-                continue;
-            }
-
-            if directive == "no-cache" {
-                if control.no_store {
-                    bail!("`no-cache` cannot be combined with `no-store`");
-                }
-                control.no_cache = true;
-                continue;
-            }
-
-            if let Some(value) = directive.strip_prefix("max-age=") {
-                if control.no_store {
-                    bail!("`max-age` cannot be combined with `no-store`");
-                }
-                let Ok(max_age) = value.trim().parse() else {
-                    bail!("`max-age` directive is malformed");
-                };
-                control.max_age = max_age;
-            }
-
-            // ... other directives ignored
+        // Conflicts are judged on the whole set, so `max-age=0, no-store` and
+        // `no-store, max-age=0` are refused alike.
+        if control.no_store && (control.no_cache || max_age.is_some()) {
+            bail!("`no-store` cannot be combined with `no-cache` or `max-age`");
         }
+        control.max_age = max_age.unwrap_or(0);
 
         // `no-cache` refreshes the stored copy whenever `max-age` accompanies
         // it, and every cached-path response is stamped with the etag, so it
         // needs the key too; only `no-store` can do without one.
         if !control.no_store {
-            let Some(etag) = headers.get(IF_NONE_MATCH) else {
+            // `If-None-Match` is a list field too (`#entity-tag`), so a second
+            // line is a second etag, refused exactly like a comma.
+            let mut lines = headers.get_all(IF_NONE_MATCH).iter();
+            let Some(etag) = lines.next() else {
                 bail!(
                     "`If-None-Match` header required when using `Cache-Control: max-age` or `no-cache`"
                 );
             };
-            if etag.is_empty() {
-                bail!("`If-None-Match` header is empty");
-            }
-
             let etag_str = etag.to_str()?;
-            if etag_str.contains(',') {
+            if lines.next().is_some() || etag_str.contains(',') {
                 bail!("multiple `etag` values in `If-None-Match` header are not supported");
+            }
+            if etag_str.is_empty() {
+                bail!("`If-None-Match` header is empty");
             }
             if etag_str.starts_with("W/") {
                 bail!("weak `etag` values in `If-None-Match` header are not supported");
@@ -235,6 +242,56 @@ mod tests {
 
         let Err(_) = Control::try_from(&headers) else {
             panic!("expected conflicting directives error");
+        };
+    }
+
+    #[test]
+    fn no_store_conflict_is_order_independent() {
+        // `max-age=0` is still `max-age`: present is what matters, not > 0.
+        for value in ["max-age=0, no-store", "no-store, max-age=0", "no-cache, no-store"] {
+            let mut headers = HeaderMap::new();
+            headers.append(CACHE_CONTROL, value.parse().unwrap());
+            headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+            let Err(_) = Control::try_from(&headers) else {
+                panic!("expected `{value}` to be refused");
+            };
+        }
+    }
+
+    #[test]
+    fn cache_control_lines_are_combined() {
+        // RFC 9110 §5.3: two field lines read as one comma-joined list.
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let control = Control::try_from(&headers).expect("should parse");
+        assert!(control.no_cache);
+        assert_eq!(control.max_age(), 60);
+        assert!(control.writes());
+
+        // A later line carrying `no-store` is not silently dropped.
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(CACHE_CONTROL, "no-store".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let Err(_) = Control::try_from(&headers) else {
+            panic!("expected conflicting directives error across lines");
+        };
+    }
+
+    #[test]
+    fn if_none_match_lines_are_multiple_etags() {
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=60".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag1\"".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag2\"".parse().unwrap());
+
+        let Err(_) = Control::try_from(&headers) else {
+            panic!("expected multiple etag values rejection across lines");
         };
     }
 
