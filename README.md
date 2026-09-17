@@ -56,8 +56,9 @@ component rung compiles for.
 `crates/http-cache/tests/cache.rs` drives `HttpCache` natively against
 `omnia_test::guest::Provider` (`MatchedHttp` + `Memory`). Scenarios cover
 miss-then-hit, `no-cache` refresh (with `max-age`) and bypass (without),
-`max-age=0` revalidation, `no-store` bypass, non-2xx not stored, pass-through
-without `Cache-Control`, and malformed directives. Unit tests
+`max-age=0` revalidation, `no-store` bypass, non-2xx not stored, a corrupt
+entry and a store outage both degrading to the origin, pass-through without
+`Cache-Control`, and malformed directives. Unit tests
 for the `Cache-Control` parser live beside it in `src/control.rs`.
 
 ### Component rung

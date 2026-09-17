@@ -32,6 +32,51 @@ impl<H, S> HttpCache<H, S> {
     }
 }
 
+// A cache exists to cut response time and bandwidth (RFC 9111 §1); nothing in
+// the spec lets its own faults change the answer. So a failing or corrupt read
+// is a miss and a failing write hands back the origin response uncached, each
+// logged rather than propagated.
+impl<H: HttpRequest, S: StateStore> HttpCache<H, S> {
+    /// The stored response under `etag`, or `None` on a miss, a store
+    /// failure, or an entry that no longer deserializes.
+    async fn read_entry(&self, etag: &str) -> Option<Response<Bytes>> {
+        let hit = match self.store.get(etag).await {
+            Ok(hit) => hit?,
+            Err(e) => {
+                tracing::warn!("cache read for etag `{etag}` failed, treating as a miss: {e:#}");
+                return None;
+            }
+        };
+        match deserialize(&hit) {
+            Ok(response) => {
+                tracing::debug!("cache hit for etag `{etag}`");
+                Some(response)
+            }
+            Err(e) => {
+                tracing::warn!(
+                    "cache entry for etag `{etag}` is corrupt, treating as a miss: {e:#}"
+                );
+                None
+            }
+        }
+    }
+
+    /// Store `response` under `etag` for `max_age` seconds, logging rather
+    /// than surfacing a serialization or store failure.
+    async fn write_entry(&self, etag: &str, response: &Response<Bytes>, max_age: u64) {
+        tracing::debug!("caching response for etag `{etag}`");
+        let written = match serialize(response) {
+            Ok(bytes) => self.store.set(etag, &bytes, Some(max_age)).await.map(drop),
+            Err(e) => Err(e),
+        };
+        if let Err(e) = written {
+            tracing::warn!(
+                "caching response for etag `{etag}` failed, returning it uncached: {e:#}"
+            );
+        }
+    }
+}
+
 impl<H: HttpRequest, S: StateStore> HttpRequest for HttpCache<H, S> {
     async fn fetch<T>(&self, mut request: Request<T>) -> Result<Response<Bytes>>
     where
@@ -47,10 +92,9 @@ impl<H: HttpRequest, S: StateStore> HttpRequest for HttpCache<H, S> {
         // The raw etag is the storage key: no prefix, no hashing.
         let etag = control.etag();
         if control.reads()
-            && let Some(hit) = self.store.get(etag).await?
+            && let Some(hit) = self.read_entry(etag).await
         {
-            tracing::debug!("cache hit for etag `{etag}`");
-            return deserialize(&hit);
+            return Ok(hit);
         }
 
         // The cache owns conditional semantics: forwarding `If-None-Match`
@@ -70,8 +114,7 @@ impl<H: HttpRequest, S: StateStore> HttpRequest for HttpCache<H, S> {
         // Only successful responses are cacheable: storing a 5xx body would
         // serve it as the resource for `max_age` seconds.
         if control.writes() && response.status().is_success() {
-            tracing::debug!("caching response for etag `{etag}`");
-            self.store.set(etag, &serialize(&response)?, Some(control.max_age())).await?;
+            self.write_entry(etag, &response, control.max_age()).await;
         }
 
         Ok(response)

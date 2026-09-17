@@ -32,6 +32,10 @@ where cached fetches are wanted and use the bare provider everywhere else.
   (`"\"v1\""` for `If-None-Match: "v1"`); the injected `StateStore` decides
   where entries live and the TTL is `max-age`. Header values are stored as
   raw bytes, so `obs-text` (RFC 9110 §5.5) survives a round trip.
+- The store never fails a request. A read error or an entry that no longer
+  deserializes is treated as a miss; a write error hands back the origin
+  response uncached. Both are logged at `warn`. Malformed `Cache-Control` is
+  the caller's error and still fails before any request leaves.
 
 ## Usage
 

@@ -2,12 +2,15 @@
 //! with the outbound request recorded by `MatchedHttp` and the stored copy
 //! read back from `Memory`.
 
+use std::future::{Future, ready};
+
+use anyhow::{Result, anyhow};
 use bytes::Bytes;
 use http::header::{CACHE_CONTROL, CONTENT_TYPE, ETAG, IF_NONE_MATCH};
 use http::{HeaderValue, Method, Request, Response, StatusCode};
 use http_body_util::Empty;
 use omnia_http_cache::HttpCache;
-use omnia_sdk::HttpRequest as _;
+use omnia_sdk::{CasError, HttpRequest as _, StateStore};
 use omnia_test::guest::{MatchedHttp, Provider};
 
 const URL: &str = "https://origin.test/resource";
@@ -40,6 +43,35 @@ fn etag(response: &Response<Bytes>) -> Option<&str> {
 /// The stored envelope, as the JSON the crate writes.
 fn stored(provider: &Provider) -> Option<serde_json::Value> {
     provider.storage.state(ETAG_V1).map(|bytes| serde_json::from_slice(&bytes).expect("valid JSON"))
+}
+
+/// A `StateStore` whose every call fails, standing in for a keyvalue outage.
+struct BrokenStore;
+
+impl StateStore for BrokenStore {
+    fn get(&self, _key: &str) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send {
+        ready(Err(anyhow!("store unavailable")))
+    }
+
+    fn set(
+        &self, _key: &str, _value: &[u8], _ttl_secs: Option<u64>,
+    ) -> impl Future<Output = Result<Option<Vec<u8>>>> + Send {
+        ready(Err(anyhow!("store unavailable")))
+    }
+
+    fn delete(&self, _key: &str) -> impl Future<Output = Result<()>> + Send {
+        ready(Err(anyhow!("store unavailable")))
+    }
+
+    fn cas(
+        &self, _key: &str, _expected: Option<&[u8]>, _value: &[u8],
+    ) -> impl Future<Output = Result<(), CasError>> + Send {
+        ready(Err(CasError::Store("store unavailable".into())))
+    }
+
+    fn increment(&self, _key: &str, _delta: i64) -> impl Future<Output = Result<i64>> + Send {
+        ready(Err(anyhow!("store unavailable")))
+    }
 }
 
 #[tokio::test]
@@ -167,6 +199,45 @@ async fn non_success_not_stored() {
     assert_eq!(etag(&response), Some(ETAG_V1));
     assert_eq!(provider.http.requests().len(), 1);
     assert!(stored(&provider).is_none());
+}
+
+#[tokio::test]
+async fn corrupt_entry_is_a_miss_and_replaced() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, &provider);
+    let headers = [(CACHE_CONTROL, "max-age=60"), (IF_NONE_MATCH, ETAG_V1)];
+
+    // Whatever is under the key is not an envelope this crate wrote.
+    provider.storage.insert_state(ETAG_V1, b"not an envelope");
+
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.body(), PAYLOAD);
+    assert_eq!(etag(&response), Some(ETAG_V1));
+    assert_eq!(provider.http.requests().len(), 1);
+
+    // The origin response overwrites the corrupt entry and serves the next call.
+    assert_eq!(stored(&provider).expect("response cached")["status"], 200);
+    let hit = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(hit.body(), PAYLOAD);
+    assert_eq!(provider.http.requests().len(), 1);
+}
+
+#[tokio::test]
+async fn store_outage_degrades_to_origin() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, BrokenStore);
+    let headers = [(CACHE_CONTROL, "max-age=60"), (IF_NONE_MATCH, ETAG_V1)];
+
+    // The read fails, the origin is asked, the write fails: the caller still
+    // gets the response the origin produced, on every call.
+    for round in 1..=2 {
+        let response = cache.fetch(request(&headers)).await.expect("should succeed");
+        assert_eq!(response.status(), StatusCode::OK);
+        assert_eq!(response.body(), PAYLOAD);
+        assert_eq!(etag(&response), Some(ETAG_V1));
+        assert_eq!(provider.http.requests().len(), round);
+    }
 }
 
 #[tokio::test]
