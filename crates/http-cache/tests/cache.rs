@@ -101,6 +101,44 @@ async fn no_cache_refreshes() {
 }
 
 #[tokio::test]
+async fn no_cache_alone_bypasses_without_writing() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, &provider);
+    let headers = [(CACHE_CONTROL, "no-cache"), (IF_NONE_MATCH, ETAG_V1)];
+
+    // RFC 9111 §5.2.1.4: the stored copy must not be served unvalidated, but
+    // with no `max-age` there is no lifetime to write the response under, so
+    // the existing entry is left as it was.
+    provider.storage.insert_state(ETAG_V1, b"existing");
+
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(response.body(), PAYLOAD);
+    assert_eq!(etag(&response), Some(ETAG_V1));
+    assert_eq!(provider.http.requests().len(), 1);
+    assert_eq!(provider.storage.state(ETAG_V1).as_deref(), Some(b"existing".as_slice()));
+}
+
+#[tokio::test]
+async fn zero_max_age_revalidates() {
+    let provider = provider(StatusCode::OK);
+    let cache = HttpCache::new(&provider, &provider);
+    let headers = [(CACHE_CONTROL, "max-age=0"), (IF_NONE_MATCH, ETAG_V1)];
+
+    // RFC 9111 §5.2.1.1: `max-age=0` accepts no stored response, however
+    // fresh, so a populated entry is bypassed rather than served.
+    provider.storage.insert_state(ETAG_V1, b"stale");
+
+    let response = cache.fetch(request(&headers)).await.expect("should succeed");
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(response.body(), PAYLOAD);
+    assert_eq!(etag(&response), Some(ETAG_V1));
+    assert_eq!(provider.http.requests().len(), 1);
+
+    // Nor is there a lifetime to store the fresh copy under.
+    assert_eq!(provider.storage.state(ETAG_V1).as_deref(), Some(b"stale".as_slice()));
+}
+
+#[tokio::test]
 async fn no_store_bypasses() {
     let provider = provider(StatusCode::OK);
     let cache = HttpCache::new(&provider, &provider);

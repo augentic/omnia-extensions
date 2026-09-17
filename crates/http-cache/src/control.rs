@@ -8,14 +8,20 @@ use http::header::{CACHE_CONTROL, IF_NONE_MATCH};
 /// `If-None-Match` headers.
 #[derive(Clone, Debug, Default)]
 pub struct Control {
-    // If true, make the HTTP request and then update the cache with the
-    // response.
+    // If true, bypass any stored copy and make the HTTP request. Per RFC 9111
+    // §5.2.1.4 the request directive only forbids serving a stored response
+    // without validation; whether the new response is written back still
+    // depends on `max_age` supplying a lifetime.
     no_cache: bool,
 
     // If true, make the HTTP request and do not cache the response.
     no_store: bool,
 
-    // Length of time to cache the response in seconds.
+    // Length of time to cache the response in seconds. Zero (also the value
+    // when the directive is absent) disables the store in both directions:
+    // RFC 9111 §5.2.1.1 defines a request `max-age` as the oldest response
+    // the client will accept, so `max-age=0` cannot be satisfied from the
+    // store and there is no lifetime to write a fresh copy under.
     max_age: u64,
 
     // ETag to use as the cache key, derived from the `If-None-Match` header.
@@ -37,12 +43,18 @@ impl Control {
     }
 
     /// Whether a stored response may be served without contacting the origin.
+    ///
+    /// Requires a positive `max-age`: `max-age=0` asks for a response no
+    /// older than zero seconds, which only the origin can provide.
     #[must_use]
     pub const fn reads(&self) -> bool {
-        !self.no_cache && !self.no_store && !self.etag.is_empty()
+        !self.no_cache && !self.no_store && self.max_age > 0 && !self.etag.is_empty()
     }
 
     /// Whether a successful origin response should be stored.
+    ///
+    /// `no-cache` on its own does not write: it bypasses the stored copy but
+    /// supplies no lifetime, so only `no-cache, max-age=<secs>` refreshes it.
     #[must_use]
     pub const fn writes(&self) -> bool {
         !self.no_store && self.max_age > 0 && !self.etag.is_empty()
@@ -109,8 +121,9 @@ impl TryFrom<&HeaderMap> for Control {
             // ... other directives ignored
         }
 
-        // `no-cache` still refreshes the stored copy, so it needs the key too;
-        // only `no-store` can do without one.
+        // `no-cache` refreshes the stored copy whenever `max-age` accompanies
+        // it, and every cached-path response is stamped with the etag, so it
+        // needs the key too; only `no-store` can do without one.
         if !control.no_store {
             let Some(etag) = headers.get(IF_NONE_MATCH) else {
                 bail!(
@@ -160,6 +173,48 @@ mod tests {
         assert_eq!(control.etag, "\"strong-etag\"");
         assert!(control.reads());
         assert!(control.writes());
+    }
+
+    #[test]
+    fn zero_max_age_revalidates() {
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "max-age=0".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let control = Control::try_from(&headers).expect("should parse");
+
+        // RFC 9111 §5.2.1.1: no stored response is young enough, and there is
+        // no lifetime to store a fresh one under.
+        assert!(!control.reads());
+        assert!(!control.writes());
+    }
+
+    #[test]
+    fn no_cache_bypasses_without_writing() {
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "no-cache".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let control = Control::try_from(&headers).expect("should parse");
+
+        // RFC 9111 §5.2.1.4 only forbids serving the stored copy unvalidated;
+        // with no `max-age` there is nothing to write the response under.
+        assert!(control.no_cache);
+        assert!(!control.reads());
+        assert!(!control.writes());
+    }
+
+    #[test]
+    fn no_cache_with_max_age_refreshes() {
+        let mut headers = HeaderMap::new();
+        headers.append(CACHE_CONTROL, "no-cache, max-age=60".parse().unwrap());
+        headers.append(IF_NONE_MATCH, "\"etag\"".parse().unwrap());
+
+        let control = Control::try_from(&headers).expect("should parse");
+
+        assert!(!control.reads());
+        assert!(control.writes());
+        assert_eq!(control.max_age(), 60);
     }
 
     #[test]

@@ -9,10 +9,16 @@ where cached fetches are wanted and use the bare provider everywhere else.
 ## Header contract
 
 - A request without `Cache-Control` passes through untouched.
-- `Cache-Control` directives: `max-age=<secs>` (store a successful response
-  for that long), `no-cache` (always contact the origin, then refresh the
-  stored copy), `no-store` (contact the origin and store nothing). `no-store`
-  cannot be combined with the other two.
+- `Cache-Control` directives: `max-age=<secs>` (serve a stored response, or
+  store a successful one for that long), `no-cache` (bypass the stored copy
+  and contact the origin), `no-store` (contact the origin and store nothing).
+  `no-store` cannot be combined with the other two.
+- `max-age` is the only lifetime the cache knows, so it gates the store in
+  both directions. `max-age=0` neither serves nor stores: per RFC 9111
+  §5.2.1.1 a request `max-age` is the oldest response the client will accept,
+  which makes zero a revalidation. Likewise `no-cache` alone only bypasses
+  (RFC 9111 §5.2.1.4 says nothing about storing); `no-cache, max-age=<secs>`
+  is the forced refresh that replaces the stored copy.
 - `max-age` and `no-cache` require `If-None-Match` carrying a single strong
   etag; weak (`W/`) and comma-separated values are refused before any request
   leaves.
