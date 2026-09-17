@@ -57,10 +57,12 @@ command = "cargo"
 args = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
 install_crate = { rustup_component_name = "clippy" }
 
-# Lint the guests for the WASM target
+# Lint the guests for the WASM target. `--examples` covers the example guests;
+# it is a target-selection flag, so `--lib` keeps the crates in scope too. The
+# runtime examples are `cfg_if`-gated to an empty `main` on wasm32.
 [tasks.lint-wasm]
 command = "cargo"
-args = ["clippy", "--locked", "--workspace", "--all-features", "--target", "wasm32-wasip2", "--", "-D", "warnings"]
+args = ["clippy", "--locked", "--workspace", "--all-features", "--lib", "--examples", "--target", "wasm32-wasip2", "--", "-D", "warnings"]
 install_crate = { rustup_component_name = "clippy" }
 
 # Miri
@@ -102,7 +104,11 @@ cargo vet --locked
 '''
 install_crate = "cargo-vet"
 
+[tasks.publish]
+command = "cargo"
+args = ["publish", "--registry=augentic", "--allow-dirty", "--dry-run"]
+
 # Build the WASM guests
 [tasks.wasm]
 command = "cargo"
-args = ["build", "--locked", "--workspace", "--all-features", "--target", "wasm32-wasip2", "--release"]
+args = ["build", "--locked", "--workspace", "--all-features", "--lib", "--examples", "--target", "wasm32-wasip2", "--release"]

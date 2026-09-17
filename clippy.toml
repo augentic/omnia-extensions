@@ -1,13 +1,14 @@
 # https://doc.rust-lang.org/stable/clippy/index.html
 
 doc-valid-idents = [
-  "GTFS",
   "OpenTelemetry",
   "WebAssembly",
   "WebSocket",
   "WebSockets",
 ]
 
+# Provisional (copied from the exemplar); derived from `cargo tree -d` once the
+# dependency graph is real.
 allowed-duplicate-crates = [
   "axum",
   "axum-core",
