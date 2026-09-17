@@ -26,6 +26,23 @@ omnia-sdk = { workspace = true, features = ["http"] }
 tracing.workspace = true
 wasip3.workspace = true
 
+# The component rung (`tests/component.rs`): the example runtime booted
+# in-process over `omnia_test::host::Backends` against a loopback origin.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+bytes.workspace = true
+http.workspace = true
+http-body-util.workspace = true
+hyper = { workspace = true, features = ["http1", "server"] }
+hyper-util = { workspace = true, features = ["tokio"] }
+omnia-test = { workspace = true, features = ["host"] }
+serde_json.workspace = true
+tokio = { workspace = true, features = ["macros", "net", "rt"] }
+
+# The fixture rung: `build.rs` compiles the example guest to a
+# `wasm32-wasip2` component for the tests to boot.
+[build-dependencies]
+omnia-test = { workspace = true, features = ["build"] }
+
 [[example]]
 name = "http-cache-wasm"
 path = "http-cache/guest.rs"
