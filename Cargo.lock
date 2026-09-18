@@ -2214,6 +2214,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "omnia-orm"
+version = "0.1.0"
+dependencies = [
+ "anyhow",
+ "chrono",
+ "omnia-wasi-sql",
+ "sea-query",
+ "serde_json",
+ "tracing",
+]
+
+[[package]]
 name = "omnia-plugin"
 version = "0.36.0"
 source = "git+https://github.com/augentic/omnia#de893ea7116f500d1258e23a7e08e49bcc053734"

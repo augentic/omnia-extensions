@@ -58,11 +58,13 @@ anyhow = "1.0.104"
 axum = { version = "0.8.9", default-features = false, features = ["json"] }
 bytes = "1.12.1"
 cfg-if = "1.0.4"
+chrono = "0.4.45"
 http = "1.5.0"
 http-body = "1.1.0"
 http-body-util = "0.1.5"
 hyper = "1.11.0"
 hyper-util = "0.1.20"
+sea-query = { version = "1.0.2", default-features = false, features = ["thread-safe", "with-chrono"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 tokio = { version = "1.53.1", default-features = false }
@@ -79,9 +81,11 @@ omnia-wasi-config = "0.36.0"
 omnia-wasi-http = "0.36.0"
 omnia-wasi-keyvalue = "0.36.0"
 omnia-wasi-otel = "0.36.0"
+omnia-wasi-sql = "0.36.0"
 
 # internally referenced crates
 omnia-http-cache = { path = "crates/http-cache", version = "0.1.0" }
+omnia-orm = { path = "crates/orm", version = "0.1.0" }
 
 # Omnia is consumed from GitHub; `Cargo.lock` pins the revision. Until Omnia's
 # `cache-to-extensions` branch (which removes the guest-side HTTP cache this
@@ -97,6 +101,7 @@ omnia-wasi-config = { git = "https://github.com/augentic/omnia" }
 omnia-wasi-http = { git = "https://github.com/augentic/omnia" }
 omnia-wasi-keyvalue = { git = "https://github.com/augentic/omnia" }
 omnia-wasi-otel = { git = "https://github.com/augentic/omnia" }
+omnia-wasi-sql = { git = "https://github.com/augentic/omnia" }
 
 # omnia = { path = "../omnia/crates/omnia" }
 # omnia-sdk = { path = "../omnia/crates/omnia-sdk" }
@@ -105,6 +110,7 @@ omnia-wasi-otel = { git = "https://github.com/augentic/omnia" }
 # omnia-wasi-http = { path = "../omnia/crates/wasi-http" }
 # omnia-wasi-keyvalue = { path = "../omnia/crates/wasi-keyvalue" }
 # omnia-wasi-otel = { path = "../omnia/crates/wasi-otel" }
+# omnia-wasi-sql = { path = "../omnia/crates/wasi-sql" }
 
 [profile.release]
 lto = true
