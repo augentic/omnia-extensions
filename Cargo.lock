@@ -2223,9 +2223,12 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "chrono",
+ "omnia-sdk",
+ "omnia-test",
  "omnia-wasi-sql",
  "sea-query",
  "serde_json",
+ "tokio",
  "tracing",
 ]
 

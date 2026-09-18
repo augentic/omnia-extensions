@@ -1,7 +1,7 @@
 //! Compiles the example guests to `wasm32-wasip2` components for the
-//! component rung (`tests/component.rs`) and generates `gen.rs` with their
-//! path constants (`HTTP_CACHE_WASM`, `ORM_WASM`) for the native side to
-//! `include!`.
+//! component rung (`tests/component.rs`, `tests/orm.rs`) and generates
+//! `gen.rs` with their path constants (`HTTP_CACHE_WASM`, `ORM_WASM`) for the
+//! native side to `include!`.
 //!
 //! The nested build compiles this same package for `wasm32`, running this
 //! script again; `Components` is a no-op under that target, so the recursion

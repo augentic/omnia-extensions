@@ -31,8 +31,8 @@ serde_json.workspace = true
 tracing.workspace = true
 wasip3.workspace = true
 
-# The component rung (`tests/component.rs`): the example runtime booted
-# in-process over `omnia_test::host::Backends` against a loopback origin.
+# The component rung (`tests/component.rs`, `tests/orm.rs`): the example
+# runtimes booted in-process over `omnia_test::host::Backends`.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 bytes.workspace = true
 http.workspace = true
