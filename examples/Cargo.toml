@@ -12,6 +12,7 @@ omnia-wasi-config.workspace = true
 omnia-wasi-http.workspace = true
 omnia-wasi-keyvalue.workspace = true
 omnia-wasi-otel.workspace = true
+omnia-wasi-sql.workspace = true
 
 [target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 omnia.workspace = true
@@ -19,10 +20,14 @@ omnia.workspace = true
 [target.'cfg(target_arch = "wasm32")'.dependencies]
 axum.workspace = true
 bytes.workspace = true
+chrono.workspace = true
 http.workspace = true
 http-body-util.workspace = true
 omnia-http-cache.workspace = true
-omnia-sdk = { workspace = true, features = ["http"] }
+omnia-orm.workspace = true
+omnia-sdk = { workspace = true, features = ["http", "sql"] }
+serde.workspace = true
+serde_json.workspace = true
 tracing.workspace = true
 wasip3.workspace = true
 
@@ -51,3 +56,12 @@ crate-type = ["cdylib"]
 [[example]]
 name = "http-cache"
 path = "http-cache/runtime.rs"
+
+[[example]]
+name = "orm-wasm"
+path = "orm/guest.rs"
+crate-type = ["cdylib"]
+
+[[example]]
+name = "orm"
+path = "orm/runtime.rs"

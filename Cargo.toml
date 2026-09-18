@@ -88,10 +88,10 @@ omnia-http-cache = { path = "crates/http-cache", version = "0.1.0" }
 omnia-orm = { path = "crates/orm", version = "0.1.0" }
 
 # Omnia is consumed from GitHub; `Cargo.lock` pins the revision. Until Omnia's
-# `cache-to-extensions` branch (which removes the guest-side HTTP cache this
-# repository replaces) merges into `main`, the pin is a revision on that branch,
-# so move it with `cargo update -p omnia-test --precise <rev>` — a plain
-# `cargo update` would jump to `main` and reintroduce the cache. The commented
+# `orm-to-extension` branch (which removes the guest ORM this repository
+# replaces) merges into `main`, the pin is a revision on that branch, so move
+# it with `cargo update -p omnia-test --precise <rev>` — a plain
+# `cargo update` would jump to `main` and reintroduce the ORM. The commented
 # `path` lines swap in a sibling checkout for local development.
 [patch.crates-io]
 omnia = { git = "https://github.com/augentic/omnia" }

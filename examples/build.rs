@@ -1,6 +1,7 @@
-//! Compiles the example guest to a `wasm32-wasip2` component for the
-//! component rung (`tests/component.rs`) and generates `gen.rs` with its
-//! path constant (`HTTP_CACHE_WASM`) for the native side to `include!`.
+//! Compiles the example guests to `wasm32-wasip2` components for the
+//! component rung (`tests/component.rs`) and generates `gen.rs` with their
+//! path constants (`HTTP_CACHE_WASM`, `ORM_WASM`) for the native side to
+//! `include!`.
 //!
 //! The nested build compiles this same package for `wasm32`, running this
 //! script again; `Components` is a no-op under that target, so the recursion
@@ -14,7 +15,7 @@
 fn main() {
     omnia_test::build::Components::in_workspace("..")
         .package("examples")
-        .examples(["http-cache-wasm"])
+        .examples(["http-cache-wasm", "orm-wasm"])
         .group("example")
         // `Cargo.lock` is outside the dep-info the nested build emits.
         .track(["Cargo.lock"])
