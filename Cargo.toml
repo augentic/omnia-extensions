@@ -57,19 +57,19 @@ unused_result_ok = "warn"
 anyhow = "1.0.104"
 axum = { version = "0.8.9", default-features = false, features = ["json"] }
 bytes = "1.12.1"
-cfg-if = "1.0.4"
+cfg-if = "1.0.5"
 chrono = "0.4.45"
 http = "1.5.0"
 http-body = "1.1.0"
 http-body-util = "0.1.5"
-hyper = "1.11.0"
+hyper = "1.11.1"
 hyper-util = "0.1.20"
 sea-query = { version = "1.0.2", default-features = false, features = ["thread-safe", "with-chrono"] }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.151"
 tokio = { version = "1.53.1", default-features = false }
 tracing = "0.1.44"
-wasip3 = { version = "0.8.0", features = ["http-compat"] }
+wasip3 = { version = "0.9.0", features = ["http-compat"] }
 
 omnia = "0.36.0"
 omnia-sdk = { version = "0.36.0", default-features = false }
@@ -87,12 +87,13 @@ omnia-wasi-sql = "0.36.0"
 omnia-http-cache = { path = "crates/http-cache", version = "0.1.0" }
 omnia-orm = { path = "crates/orm", version = "0.1.0" }
 
-# Omnia is consumed from GitHub; `Cargo.lock` pins the revision. Until Omnia's
-# `orm-to-extension` branch (which removes the guest ORM this repository
-# replaces) merges into `main`, the pin is a revision on that branch, so move
-# it with `cargo update -p omnia-test --precise <rev>` — a plain
-# `cargo update` would jump to `main` and reintroduce the ORM. The commented
-# `path` lines swap in a sibling checkout for local development.
+# Omnia is consumed from GitHub; `Cargo.lock` pins the revision on `main`.
+# Move it with `cargo update -p omnia-test` (or `--precise <rev>` for a
+# specific commit). When Omnia bumps a dependency shared with this workspace
+# (`wasip3`, `hyper`, ...) the `[workspace.dependencies]` pin above must follow,
+# or the guests end up with two copies of the crate and mismatched
+# `Request`/`Response` types. The commented `path` lines swap in a sibling
+# checkout for local development.
 [patch.crates-io]
 omnia = { git = "https://github.com/augentic/omnia" }
 omnia-sdk = { git = "https://github.com/augentic/omnia" }
