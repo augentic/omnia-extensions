@@ -30,6 +30,10 @@ pub mod __private {
 
 /// Declares an ORM entity with automatic `Entity` trait implementation.
 ///
+/// Every field type must implement [`FetchValue`] (used by `from_row`) and
+/// `Clone + Into<sea_query::Value>` (used by `InsertBuilder::from_entity`,
+/// which clones each field out of `&self` before converting it).
+///
 /// # Examples
 ///
 /// ```ignore

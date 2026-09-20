@@ -31,8 +31,9 @@ entity!(
 ```
 
 The struct is otherwise ordinary — derive whatever you need. Every field type
-must implement `FetchValue` (for `from_row`) and `Into<sea_query::Value>`
-(for `InsertBuilder::from_entity`):
+must implement `FetchValue` (for `from_row`) and `Clone + Into<sea_query::Value>`
+(for `InsertBuilder::from_entity`, which clones each field out of `&self`
+before converting it). All of the types below satisfy this:
 
 | Rust type | `DataType` read | `DataType` written |
 | --- | --- | --- |
