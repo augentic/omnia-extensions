@@ -21,6 +21,7 @@ host-side concern; nothing here talks to them.
 | Crate | Description |
 | --- | --- |
 | [`omnia-http-cache`](crates/http-cache) | `HttpCache<H, S>` decorator over `HttpRequest` + `StateStore`. Requests carrying `Cache-Control` and `If-None-Match` are answered from, and written back through, the injected store. |
+| [`omnia-orm`](crates/orm) | `entity!` mapping and typed `SELECT` / `INSERT` / `UPDATE` / `DELETE` builders that render parameterized SQL for `TableStore` to execute over `wasi:sql`. |
 
 ## Quick start
 
@@ -38,6 +39,19 @@ first call reaches the origin and is stored for 300 seconds; the second is
 served from the store. See [`examples/http-cache/README.md`](examples/http-cache/README.md)
 and the crate [header contract](crates/http-cache/README.md).
 
+The ORM example is a two-table CRUD service over the runtime's in-memory
+`SQLite`:
+
+```shell
+make build orm
+make run orm
+```
+
+`POST /agencies`, `POST /agencies/{id}/feeds`, `GET /feeds` (a JOIN entity),
+`PATCH /agencies/{id}`, and `DELETE /feeds/{id}` each exercise one builder;
+the curl walk-through is in [`examples/orm/README.md`](examples/orm/README.md)
+and the builder vocabulary in the crate [README](crates/orm/README.md).
+
 ## Testing
 
 ```shell
@@ -46,7 +60,7 @@ cargo make test              # cargo nextest run --locked --all --all-features
 
 The suite is laid out as omnia's three rungs (see omnia's
 [Testing Omnia-Based Code](https://github.com/augentic/omnia/blob/main/docs/guides/testing-omnia-code.md)
-guide) plus a build gate for the example host. Everything runs under
+guide) plus a build gate for the example hosts. Everything runs under
 `cargo make test`: nothing is `#[ignore]`d, and nothing needs installing
 beyond `rust-toolchain.toml`, which carries the `wasm32-wasip2` target the
 component rung compiles for.
@@ -62,21 +76,38 @@ entry and a store outage both degrading to the origin, pass-through without
 directives. Unit tests
 for the `Cache-Control` parser live beside it in `src/control.rs`.
 
+`crates/orm/tests/orm.rs` runs each builder's `Query` through the same
+`Provider`, whose `ScriptedTables` records the SQL text and `$n` parameters
+that reach `TableStore` and answers with scripted rows. Scenarios cover a
+filtered, ordered, limited select mapped back through `Entity::from_row`
+(including `NULL` → `None` and RFC 3339 timestamps), insert from an entity,
+an `ON CONFLICT` upsert, a filtered update and delete, a JOIN entity with
+aliased columns, and a missing column failing row mapping. Unit tests for
+SQL rendering and type conversion live beside the builders in `src/`.
+
 ### Component rung
 
-`examples/tests/component.rs` boots the example guest — compiled to a
-`wasm32-wasip2` component by `examples/build.rs` — through the example
+`examples/tests/component.rs` boots the HTTP cache example guest — compiled
+to a `wasm32-wasip2` component by `examples/build.rs` — through the example
 host's own `runtime!` wiring over `omnia_test::host::Backends`. A loopback
 origin records hits; one scenario, `cached_miss_then_hit`, asserts both
 handler responses, a single origin fetch, and the keyvalue envelope under
 the raw etag.
 
+`examples/tests/orm.rs` boots the ORM example guest the same way, over the
+bundle's private in-memory `SQLite`. One scenario, `agency_feed_lifecycle`,
+chains the routes in-process: create an agency, list and update it, add a
+feed, read the feed back through the JOIN entity carrying the updated agency
+name, delete it, read an empty list, and see the second delete answered as
+not found.
+
 ### Examples gate
 
 `examples/tests/examples.rs::build` runs `cargo build --locked --examples`
-from the package root. The host in `examples/http-cache/runtime.rs` is a
-server that never exits, so it is compiled, not run; the component rung is
-where its wiring is exercised.
+from the package root, so both example hosts compile. The hosts in
+`examples/http-cache/runtime.rs` and `examples/orm/runtime.rs` are servers
+that never exit, so they are compiled, not run; the component rung is where
+their wiring is exercised.
 
 ## Development
 
@@ -84,8 +115,8 @@ where its wiring is exercised.
 make ci         # fmt, clippy (native + wasm), test, docs, vet, outdated, deny
 ```
 
-`make ci` is the whole gate: every rung above, including the component rung
-and the examples gate, runs inside `make test`. The workspace follows
+`make ci` is the whole gate: every rung above, including both component
+rungs and the examples gate, runs inside `make test`. The workspace follows
 omnia's conventions: stable toolchain (`rust-toolchain.toml`, with the
 `wasm32-wasip2` target), edition 2024, workspace lints, `cargo vet`
 supply-chain audits (`supply-chain/`), and CI as thin wrappers over the
