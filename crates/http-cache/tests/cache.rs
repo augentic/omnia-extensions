@@ -2,6 +2,9 @@
 //! with the outbound request recorded by `MatchedHttp` and the stored copy
 //! read back from `Memory`.
 
+// Host-only: the test doubles are `not(wasm32)` dev-dependencies.
+#![cfg(not(target_arch = "wasm32"))]
+
 use std::future::{Future, ready};
 
 use anyhow::{Result, anyhow};

@@ -59,12 +59,14 @@ command = "cargo"
 args = ["clippy", "--workspace", "--all-targets", "--all-features", "--", "-D", "warnings"]
 install_crate = { rustup_component_name = "clippy" }
 
-# Lint the guests for the WASM target. `--examples` covers the example guests;
-# it is a target-selection flag, so `--lib` keeps the crates in scope too. The
-# runtime examples are `cfg_if`-gated to an empty `main` on wasm32.
+# Lint the guests for the WASM target. `--all-targets` mirrors `lint` so any
+# future wasm32 test or bench is linted rather than silently skipped. Today the
+# host-only tests are `#![cfg(not(target_arch = "wasm32"))]` and the runtime
+# examples are `cfg_if`-gated to an empty `main`, so they compile to empty
+# crates here; the lib crates and the `*-wasm` example guests are what is linted.
 [tasks.lint-wasm]
 command = "cargo"
-args = ["clippy", "--locked", "--workspace", "--all-features", "--lib", "--examples", "--target", "wasm32-wasip2", "--", "-D", "warnings"]
+args = ["clippy", "--locked", "--workspace", "--all-features", "--all-targets", "--target", "wasm32-wasip2", "--", "-D", "warnings"]
 install_crate = { rustup_component_name = "clippy" }
 
 # Miri

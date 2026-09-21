@@ -3,6 +3,8 @@
 //! `ScriptedTables` records the SQL text and `$n` parameters that reach
 //! `TableStore` and answers with scripted rows for `Entity::from_row`.
 
+// Host-only: the test doubles are `not(wasm32)` dev-dependencies.
+#![cfg(not(target_arch = "wasm32"))]
 // `entity!` only accepts `pub` fields, and the fixtures are not an API.
 #![allow(missing_docs)]
 
