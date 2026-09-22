@@ -71,6 +71,11 @@ tokio = { version = "1.53.1", default-features = false }
 tracing = "0.1.44"
 wasip3 = { version = "0.9.0", features = ["http-compat"] }
 
+# Every `omnia-*` crate stays on the same line and is bumped together. When
+# omnia bumps a dependency shared with this workspace (`wasip3`, `hyper`, ...)
+# the pin above must follow, or the guests end up with two copies of the crate
+# and mismatched `Request`/`Response` types. Never re-add a `[patch.crates-io]`
+# git or path override to chase an unreleased change.
 omnia = "0.36.0"
 omnia-sdk = { version = "0.36.0", default-features = false }
 # No default features: each consumer names its rung. A workspace-level
@@ -86,32 +91,6 @@ omnia-wasi-sql = "0.36.0"
 # internally referenced crates
 omnia-http-cache = { path = "crates/http-cache", version = "0.1.0" }
 omnia-orm = { path = "crates/orm", version = "0.1.0" }
-
-# Omnia is consumed from GitHub; `Cargo.lock` pins the revision on `main`.
-# Move it with `cargo update -p omnia-test` (or `--precise <rev>` for a
-# specific commit). When Omnia bumps a dependency shared with this workspace
-# (`wasip3`, `hyper`, ...) the `[workspace.dependencies]` pin above must follow,
-# or the guests end up with two copies of the crate and mismatched
-# `Request`/`Response` types. The commented `path` lines swap in a sibling
-# checkout for local development.
-[patch.crates-io]
-omnia = { git = "https://github.com/augentic/omnia" }
-omnia-sdk = { git = "https://github.com/augentic/omnia" }
-omnia-test = { git = "https://github.com/augentic/omnia" }
-omnia-wasi-config = { git = "https://github.com/augentic/omnia" }
-omnia-wasi-http = { git = "https://github.com/augentic/omnia" }
-omnia-wasi-keyvalue = { git = "https://github.com/augentic/omnia" }
-omnia-wasi-otel = { git = "https://github.com/augentic/omnia" }
-omnia-wasi-sql = { git = "https://github.com/augentic/omnia" }
-
-# omnia = { path = "../omnia/crates/omnia" }
-# omnia-sdk = { path = "../omnia/crates/omnia-sdk" }
-# omnia-test = { path = "../omnia/crates/omnia-test" }
-# omnia-wasi-config = { path = "../omnia/crates/wasi-config" }
-# omnia-wasi-http = { path = "../omnia/crates/wasi-http" }
-# omnia-wasi-keyvalue = { path = "../omnia/crates/wasi-keyvalue" }
-# omnia-wasi-otel = { path = "../omnia/crates/wasi-otel" }
-# omnia-wasi-sql = { path = "../omnia/crates/wasi-sql" }
 
 [profile.release]
 lto = true
