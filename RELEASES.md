@@ -12,6 +12,21 @@ Unreleased
 
 ### Changed
 
+<!-- Release notes generated using configuration in .github/release.yaml at main -->
+
+## What's Changed
+* standard github workflows by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/1
+* Cache by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/2
+* ORM extension moved from Omnia by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/3
+* fix lint target configuration by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/4
+* remove patches and use public omnia* v0.36.0 by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/5
+* Prepare 0.34.0 release by @andrew-goldie in https://github.com/augentic/omnia-extensions/pull/6
+
+## New Contributors
+* @andrew-goldie made their first contribution in https://github.com/augentic/omnia-extensions/pull/1
+
+**Full Changelog**: https://github.com/augentic/omnia-extensions/commits/v0.34.0
+
 ---
 
 Release notes for previous releases can be found on the respective release branches of the repository.
