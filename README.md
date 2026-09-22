@@ -8,13 +8,12 @@ component and against `omnia_test` doubles natively.
 
 ## Relation to omnia
 
-Dependency is strictly one-way. The omnia crates are resolved from GitHub
-`main` via `[patch.crates-io]` in `Cargo.toml`; `Cargo.lock` records the
-exact revision. Commented `path = "../omnia/crates/…"` lines in the same
-patch block swap in a sibling checkout for local development — do not
-commit them. Production backends live in
-[omnia-backends](https://github.com/augentic/omnia-backends) and are a
-host-side concern; nothing here talks to them.
+Dependency is strictly one-way. The omnia crates are published crates.io
+dependencies (currently 0.36.0) declared once under
+`[workspace.dependencies]` in `Cargo.toml`; every `omnia-*` crate moves
+together, and there are no `[patch.crates-io]` overrides. Production
+backends live in [omnia-backends](https://github.com/augentic/omnia-backends)
+and are a host-side concern; nothing here talks to them.
 
 ## Crates
 
