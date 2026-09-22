@@ -11,7 +11,7 @@ keywords = ["extensions", "omnia", "wasi", "wasm", "component-model"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/augentic/omnia-extensions"
 rust-version = "1.97"
-version = "0.34.0"
+version = "0.35.0"
 
 [workspace.lints.rust]
 # https://dirname.github.io/rust-std-doc/rustc/lints/listing/allowed-by-default.html
@@ -89,8 +89,8 @@ omnia-wasi-otel = "0.36.0"
 omnia-wasi-sql = "0.36.0"
 
 # internally referenced crates
-omnia-http-cache = { path = "crates/http-cache", version = "0.34.0" }
-omnia-orm = { path = "crates/orm", version = "0.34.0" }
+omnia-http-cache = { path = "crates/http-cache", version = "0.35.0" }
+omnia-orm = { path = "crates/orm", version = "0.35.0" }
 
 [profile.release]
 lto = true
