@@ -24,6 +24,10 @@ and are a host-side concern; nothing here talks to them.
 
 ## Quick start
 
+Tasks run through [mise](https://mise.jdx.dev/getting-started.html), which
+must be installed by hand; `make <task>` is a pass-through to
+`mise run <task>` and fails, rather than installing it, when it is missing.
+
 Build the HTTP cache example guest and run it with the example host.
 `UPSTREAM_URL` is read from the runtime environment via `wasi:config`; any
 origin that answers `GET /resource` will do:
@@ -54,13 +58,13 @@ and the builder vocabulary in the crate [README](crates/orm/README.md).
 ## Testing
 
 ```shell
-cargo make test              # cargo nextest run --locked --all --all-features
+mise run test              # cargo nextest run --workspace --all-features --locked
 ```
 
 The suite is laid out as omnia's three rungs (see omnia's
 [Testing Omnia-Based Code](https://github.com/augentic/omnia/blob/main/docs/guides/testing-omnia-code.md)
 guide) plus a build gate for the example hosts. Everything runs under
-`cargo make test`: nothing is `#[ignore]`d, and nothing needs installing
+`mise run test`: nothing is `#[ignore]`d, and nothing needs installing
 beyond `rust-toolchain.toml`, which carries the `wasm32-wasip2` target the
 component rung compiles for.
 
@@ -111,15 +115,30 @@ their wiring is exercised.
 ## Development
 
 ```shell
-make ci         # fmt, clippy (native + wasm), test, docs, vet, outdated, deny
+mise run ci     # fmt-check, clippy (native, then wasm32-wasip2), test, test-docs, docs, vet, deny
+mise run check  # local advisories: audit, fmt (in place), lint, outdated, deps
 ```
 
-`make ci` is the whole gate: every rung above, including both component
-rungs and the examples gate, runs inside `make test`. The workspace follows
-omnia's conventions: stable toolchain (`rust-toolchain.toml`, with the
-`wasm32-wasip2` target), edition 2024, workspace lints, `cargo vet`
-supply-chain audits (`supply-chain/`), and CI as thin wrappers over the
-reusable workflows in `augentic/.github`.
+`mise run ci` is the whole gate and runs exactly the jobs of the CI workflow:
+every rung above, including both component rungs and the examples gate, runs
+inside `mise run test`. `mise tasks` lists everything else; the generic Rust
+tasks are included from
+[`augentic/.github`](https://github.com/augentic/.github/blob/main/mise/rust.toml)
+by `mise.toml`, which adds only the example `build`/`run` tasks and a `wasm`
+release build of the guests.
+
+Clippy runs twice: natively with `--all-targets`, then for `wasm32-wasip2`
+over libs and examples only (never tests or benches). The whole workspace is
+in the wasm32 scope, so every runtime example stays `cfg_if`-gated to an empty
+`main` on wasm32 and every host-only integration test stays
+`#![cfg(not(target_arch = "wasm32"))]`. Regenerate the supply-chain files with
+`mise run vet-regen`; `vet` itself only checks.
+
+The workspace follows omnia's conventions: stable toolchain
+(`rust-toolchain.toml`, with the `wasm32-wasip2` target), edition 2024,
+workspace lints, `cargo vet` supply-chain audits (`supply-chain/`), and CI as
+thin wrappers over the reusable workflows in `augentic/.github`, pinned to a
+release tag.
 
 ## License
 
