@@ -1,0 +1,48 @@
+[task_config]
+includes = ["git::https://github.com/augentic/.github.git//mise/rust.toml?ref=v0.2.0"]
+
+# No `[env]` knobs: every workspace member is dual-target (host-only tests are
+# `#![cfg(not(target_arch = "wasm32"))]`, runtime examples are `cfg_if`-gated
+# to an empty `main`), so the shared `lint-wasm` covers the whole workspace,
+# and `outdated` ignores nothing.
+
+# -------------------------------------
+# Examples (project-specific; the generic Rust tasks live in the include)
+# -------------------------------------
+
+# No `usage` spec: usage would parse the guest's own flags, and `run`
+# forwards those. `mise run` still claims `-h`/`--help` itself, so guest
+# flags go after `--`.
+[tasks.build]
+description = "Build one example guest for wasm32-wasip2: mise run build <name>"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+name="${1:?example name required: mise run build <name>}"
+
+cargo build -p examples --example "${name}-wasm" --target wasm32-wasip2
+'''
+
+[tasks.run]
+description = "Run one example host against its built guest: mise run run <name> [-- guest args]"
+run = '''
+#!/usr/bin/env bash
+set -euo pipefail
+name="${1:?example name required: mise run run <name> [-- guest args]}"
+module="$(printf '%s' "$name" | tr '-' '_')"
+ws="$(cargo locate-project --workspace --message-format=plain)"
+ws="${ws%/Cargo.toml}"
+shift
+
+# A set `RUST_LOG` takes over; otherwise show the extension crates at debug.
+export RUST_LOG="${RUST_LOG:-info,opentelemetry_sdk=off,omnia_wasi_http=debug,omnia_http_cache=debug,omnia_wasi_sql=debug,omnia_orm=debug,${module}=debug}"
+
+cargo run -p examples --example "$name" -- \
+  run "${CARGO_TARGET_DIR:-$ws/target}/wasm32-wasip2/debug/examples/${module}_wasm.wasm" -- "$@"
+'''
+
+# Release build of every guest (libs and `*-wasm` examples); the shared `lint`
+# already clippies the same scope for wasm32-wasip2 in CI.
+[tasks.wasm]
+description = "Release-build the workspace libs and example guests for wasm32-wasip2"
+run = "cargo build --locked --workspace --all-features --lib --examples --target wasm32-wasip2 --release"
