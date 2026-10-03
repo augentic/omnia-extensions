@@ -15,8 +15,7 @@ Unreleased
   `renovate.json` bumps the toolkit pin as one pull request. The shared
   files — the workflow pins, the lint and deny tables, `AGENTS.md`,
   `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `GOVERNANCE.md`, and the
-  licences — are written by `make conventions-sync` and held by
-  `make conventions-check` in CI.
+  licences — live in the repo alongside toolkit-pinned CI.
 
 ---
 

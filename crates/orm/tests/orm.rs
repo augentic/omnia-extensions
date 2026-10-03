@@ -6,7 +6,7 @@
 // Host-only: the test doubles are `not(wasm32)` dev-dependencies.
 #![cfg(not(target_arch = "wasm32"))]
 // `entity!` only accepts `pub` fields, and the fixtures are not an API.
-#![allow(missing_docs)]
+#![expect(missing_docs, reason = "test fixtures are not a public API")]
 
 use std::fmt::Debug;
 
