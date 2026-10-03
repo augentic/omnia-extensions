@@ -123,9 +123,11 @@ mise run check  # local advisories: audit, fmt (in place), lint, outdated, deps
 every rung above, including both component rungs and the examples gate, runs
 inside `mise run test`. `mise tasks` lists everything else; the generic Rust
 tasks are included from
-[`augentic/.github`](https://github.com/augentic/.github/blob/main/mise/rust.toml)
+[`augentic/toolkit`](https://github.com/augentic/toolkit/blob/main/mise/rust.toml)
 by `mise.toml`, which adds only the example `build`/`run` tasks and a `wasm`
-release build of the guests.
+release build of the guests. The files the toolkit manages (`conventions.toml`
+names this repository to it) are written by `make conventions-sync` and held
+by `make conventions-check`.
 
 Clippy runs twice: natively with `--all-targets`, then for `wasm32-wasip2`
 over libs and examples only (never tests or benches). The whole workspace is
@@ -137,7 +139,7 @@ in the wasm32 scope, so every runtime example stays `cfg_if`-gated to an empty
 The workspace follows omnia's conventions: stable toolchain
 (`rust-toolchain.toml`, with the `wasm32-wasip2` target), edition 2024,
 workspace lints, `cargo vet` supply-chain audits (`supply-chain/`), and CI as
-thin wrappers over the reusable workflows in `augentic/.github`, pinned to a
+thin wrappers over the reusable workflows in `augentic/toolkit`, pinned to a
 release tag.
 
 ## License
