@@ -125,8 +125,7 @@ inside `mise run test`. `mise tasks` lists everything else; the generic Rust
 tasks are included from
 [`augentic/toolkit`](https://github.com/augentic/toolkit/blob/main/mise/rust.toml)
 by `mise.toml`, which adds only the example `build`/`run` tasks and a `wasm`
-release build of the guests. The files the toolkit manages are written by
-`make conventions-sync` and held by `make conventions-check`.
+release build of the guests.
 
 Clippy runs twice: natively with `--all-targets`, then for `wasm32-wasip2`
 over libs and examples only (never tests or benches). The whole workspace is
