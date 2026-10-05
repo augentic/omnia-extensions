@@ -2,7 +2,7 @@
 includes = ["git::https://github.com/augentic/toolkit.git//mise/rust.toml?ref=v0.5.0"]
 
 # No `[env]` knobs: every workspace member is dual-target (host-only tests are
-# `#![cfg(not(target_arch = "wasm32"))]`, runtime examples are `cfg_if`-gated
+# `#![cfg(not(target_arch = "wasm32"))]`, runtime examples are `cfg_select!`-gated
 # to an empty `main`), so the shared `lint-wasm` covers the whole workspace,
 # and `outdated` ignores nothing.
 
