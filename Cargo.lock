@@ -1017,7 +1017,6 @@ dependencies = [
  "anyhow",
  "axum",
  "bytes",
- "cfg-if",
  "chrono",
  "http",
  "http-body-util",
