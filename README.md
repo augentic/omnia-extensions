@@ -129,7 +129,7 @@ release build of the guests.
 
 Clippy runs twice: natively with `--all-targets`, then for `wasm32-wasip2`
 over libs and examples only (never tests or benches). The whole workspace is
-in the wasm32 scope, so every runtime example stays `cfg_if`-gated to an empty
+in the wasm32 scope, so every runtime example stays `cfg_select!`-gated to an empty
 `main` on wasm32 and every host-only integration test stays
 `#![cfg(not(target_arch = "wasm32"))]`. Regenerate the supply-chain files with
 `mise run vet-regen`; `vet` itself only checks.
