@@ -9,7 +9,7 @@ component and against `omnia_test` doubles natively.
 ## Relation to omnia
 
 Dependency is strictly one-way. The omnia crates are published crates.io
-dependencies (currently 0.36.0) declared once under
+dependencies (currently 0.37.0) declared once under
 `[workspace.dependencies]` in `Cargo.toml`; every `omnia-*` crate moves
 together, and there are no `[patch.crates-io]` overrides. Production
 backends live in [omnia-backends](https://github.com/augentic/omnia-backends)
