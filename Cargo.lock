@@ -1012,7 +1012,7 @@ dependencies = [
 
 [[package]]
 name = "examples"
-version = "0.35.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "axum",
@@ -2217,7 +2217,7 @@ dependencies = [
 
 [[package]]
 name = "omnia-http-cache"
-version = "0.35.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "bytes",
@@ -2247,7 +2247,7 @@ dependencies = [
 
 [[package]]
 name = "omnia-orm"
-version = "0.35.0"
+version = "0.36.0"
 dependencies = [
  "anyhow",
  "chrono",
